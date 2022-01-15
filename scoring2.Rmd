@@ -1,0 +1,167 @@
+---
+title: "Scoring Partie 2"
+author: "Yves KOUAKOU"
+date: "1/4/2022"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Crédit risque scoring par la pratique partie 2
+
+La première partie ayant été traitée elle est disponible sur mon GitHub **www.github.com/YvesKouakou/CREDIT-SCORING-PAR-LA-PRATIQUE-Partie-1-**
+
+Dans cette seconde partie, nous nous concentrerons sur l'Analyse des Correspondantances Multiples (ACM)
+
+## 1-  Librairies utiles
+
+```{r}
+library(FactoMineR) # Pour l'ACM
+library(readxl) # Lire un fichier excel
+library(ggplot2) # pour les graphes
+library(factoextra) 
+```
+
+## 2- Importation des données
+
+
+```{r }
+df <- read_excel("Downloads/df.xlsx") 
+df=data.frame(df) # transformer en Data Frame
+head.matrix(df,5) # Visualisation des données des 5 premiers clients (pour voir tous les clients => View(df)  )
+```
+
+## 3- Nature des variables
+
+```{r}
+table(sapply(df,class))
+```
+
+```{r}
+summary(df)
+```
+ 
+Il y a 9 variables de type *character* et une variable de type *numeric*. Nous allons transformer le type de la variable *Job*  en factor afin de pouvoir réaliser l'ACM.
+
+
+```{r}
+for (i in  which(sapply(df,is.numeric ))) # selectionner les variables de type numeric
+  {  df[[i]] <-as.factor (df[[i]])  } # transformer ces variables en factor 
+#df[[i]] est un moyen simple pour selectionner la colonne i
+```
+
+Toutes les variables ayant été transformées en *factor* nous pouvons faire l'ACM. Mais avant expliquons quelques notions :
+
+## 1. Qu'est-ce que l'Analyse des Correspondances Multiples (ACM)
+
+> L’Analyse des Correspondances Multiples (ACM) permet d’étudier les ressemblances entre individus du point de vue de l’ensemble des variables et de dégager des profils d’individus. 
+> Cette analyse importante pour le **scoring** nous permettra de mettre en évidence différents profils clients de comportement bancaire.
+
+## 2. Comment choisir les variables et les individus actifs ?
+
+- Nous souhaitons déterminer les profils de comportements bancaires donc nous allons mettre en actif les variables (les dix premières) correspondants aux informations bancaires. Ce choix des variables est très important, car elles sont utilisées pour calculer les distances entre individus. 
+- La variable **Risk** sera utilisée comme variable illustrative.
+- Tous les individus seront considérés comme actifs, car ils participent tous à la construction des axes.
+- Pour éviter que certaines variables qui admettent des modalités à faibles effectifs influencent l'analyse, on fera une ventilation des individus associes aux modalités rares.
+
+# 3. Comment gérer les modalités rares (fréquence relative <5%) 
+
+- On gère les modalités rares (fréquence relative <5%) en effectuant une ventilation.
+
+# 4. ACM
+```{r}
+resultat.ACM<-MCA(df,
+                  graph=FALSE,
+                  quali.sup=ncol(df),
+                  level.ventil = 0.05) #On gère les modalités rares (fréquence relative <5%) en effectuant de la ventilation
+
+#resultat.ACM (resultats de ACM)
+```
+
+
+# 5. Graphiques des individus (aux plus fortes contributions) 
+
+- les clients ayant des impayés (bad) et n'ayant pas d'impayés (good) 
+
+```{r}
+grp <- as.factor(df[, "Risk"])
+p <- fviz_mca_ind(resultat.ACM, 
+              label="none", 
+              habillage=grp,
+             addEllipses=TRUE, # Ajouter des ellipses
+             ellipse.level=0.95,
+             title="Graphe des clients bon contre mauvais clients")
+print(p)
+```
+
+# Visualisation des modalités 
+
+```{r}
+fviz_mca_var(resultat.ACM,
+             #select.var = list(contrib = 15),
+             colors=blues9,
+             shape.var = 2,
+             map = "symetriic",
+             title= "Graphe des modalités")
+```
+
+## Interprétation
+
+Nous affichons uniquement les modalités suffisamment bien représentées en excluant les modalités dont aucun des cosinus carres ne dépasse 2%. Nous pourrons le vérifier dans la partie 3 (disponible prochainement) que les modalités non représentées sont les plus rares.
+
+Le plan factoriel permet de vérifier la cohérence des données entre elles.
+
+- Les modalités *locataire* et *0-25 ans* sont proches en haut à gauche. Les locataires ont généralement moins de 25 ans.
+
+- Les modalités *female*, *founiture/equipement* et *Compte_Courant_Classe_Faible* sont aussi assez proches. Ce qui pourrait signifier que les femmes demandent un crédit généralement pour acheter des fournitures et équipements et elles ont en général des petits comptes courants.
+
+Les modalités *good* et *proprietaires* sont proches. Les propriétaires de logement ont tendance à rembourser leur prêt.
+
+- Les modalités *hommes* et *26-75ans* et *Comptes_Epargne.NA*sont proche alors on pourrait dire que les hommes ont plus de 26 ans et ont tendance à ne pas déclarer le montant qu’ils ont sur leur comptes épargne.
+
+- Les modalités *Non_Qualifié* et *<=4000€* sont opposées aux modalités *>4000€* et *Très_Qualité* selon l’axe 2. Ce qui signifie que les personnes non qualifiées empruntent des crédits généralement inférieur ou égale a 4000€ par contre les personnes très qualifiées ont tendance a demander plus de 4000€.
+- Les modalités *car* et *Compte_Epargne_Classe _Moyenne* montre que les clients de la classe moyenne utilisent les crédits pour acheter des voitures.
+
+
+>Si le second axe oppose les bons et les mauvais payeurs, le premier axe opposes plutôt les crédits importants sur une durée plus longue contacte pour faire le business aux crédit plus faibles, sur une durée plus courte, contactes pour l'achat de mobilier ou de meteriels electronique (TV/Radio). Si l'on regarde les cosinus carres des modalités, on s'apercevra que le montant et la durée sont nettement bien représentés sur le plan factoriel que l'objet du crédit.
+
+## Sélectionner le top 10 des modalités selon la contribution pour ne pas surcharger l'image
+
+
+```{r}
+fviz_mca_var(resultat.ACM,
+             select.var = list(contrib = 10),
+             colors=blues9,
+             title= "Graphe des modalités")
+```
+
+Les modalités qui contribuent le plus à la constructions des axes.
+
+# Variables (aux plus fortes coordonnées)
+
+```{r}
+
+plot(resultat.ACM, choix="var",
+     select="coord 10",
+     title="Graphe des variables",
+     cex.lab=1.5,
+     cex.main=1.5,
+     cex.axis=1.5,
+     graph.type = "classic")
+
+```
+
+## Et Après
+
+Prochainement nous allons déterminer le pouvoir discriminant de chaque variable mesurer par la valeur absolue du V de Cramer
+
+
+
+
+
+
